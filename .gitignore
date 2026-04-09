@@ -1,0 +1,11 @@
+# R
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# Données lourdes
+data/raw/
+
+# Outputs temporaires
+results/tmp/
