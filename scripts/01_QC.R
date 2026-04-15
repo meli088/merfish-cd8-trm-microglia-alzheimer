@@ -39,8 +39,11 @@ dir.create(QC_DIR, showWarnings = FALSE, recursive = TRUE)
 message("Loading objects...")
 mock      <- readRDS(file.path(OBJ_DIR, "00_mock_6wpi.rds"))
 lcmv_1wpi <- readRDS(file.path(OBJ_DIR, "00_LCMV_1wpi.rds"))
-samples   <- list(mock_6wpi = mock, LCMV_1wpi = lcmv_1wpi)
 
+samples <- list(
+  mock_6wpi = mock,
+  LCMV_1wpi = lcmv_1wpi
+)
 
 # --- Early guard: check core QC columns exist ---
 for (sample_name in names(samples)) {
@@ -56,47 +59,11 @@ message("Core QC columns present in all samples.")
 
 
 # -------------------------------------------------------
-# 3. Blank gene QC
-# -------------------------------------------------------
-# Blank genes = synthetic barcodes that should NOT be detected.
-# High blank ratio per cell = poor signal quality.
-
-message("\n--- Blank gene QC ---")
-
-for (sample_name in names(samples)) {
-  obj <- samples[[sample_name]]
-
-  all_genes   <- rownames(obj)
-  blank_genes <- grep("^[Bb]lank", all_genes, value = TRUE)
-  real_genes  <- setdiff(all_genes, blank_genes)
-
-  message(sample_name, ": ", length(blank_genes), " blank genes | ",
-          length(real_genes), " real genes")
-
-  if (length(blank_genes) > 0) {
-    counts_mat   <- GetAssayData(obj, layer = "counts")
-    blank_counts <- colSums(counts_mat[blank_genes, , drop = FALSE])
-    total_counts <- colSums(counts_mat)
-    blank_ratio  <- blank_counts / (total_counts + 1)
-
-    obj$blank_counts <- blank_counts
-    obj$blank_ratio  <- blank_ratio
-
-    message(sample_name, " — median blank ratio: ", round(median(blank_ratio), 4))
-    message(sample_name, " — % cells with any blank: ",
-            round(mean(blank_counts > 0) * 100, 1), "%")
-  } else {
-    message(sample_name, " — no blank genes found in panel (check gene naming)")
-    obj$blank_counts <- 0
-    obj$blank_ratio  <- 0
-  }
-
-  samples[[sample_name]] <- obj
-}
-
-
-# -------------------------------------------------------
-# 4. Visualize QC metrics — safe log10(x + 1) plots
+# 3. Visualize QC metrics — safe log10(x + 1) plots
+# Note: blank gene QC is not applicable here — the 54 blank barcodes
+# used by Vizgen for internal QC are not exported in cell_by_gene.csv
+# and therefore not present in the Seurat object. Blank statistics
+# are available in the Vizgen HTML report.
 # -------------------------------------------------------
 
 message("\n--- Visualizing QC metrics ---")
@@ -187,21 +154,7 @@ for (sample_name in names(samples)) {
   p_iba1 <- plot_stain(md, "Anti.IBA1_raw", "#9B59B6", "Microglia")
   p_cd8  <- plot_stain(md, "Anti.CD8_raw",  "#2980B9", "CD8+ T cells (TRM)")
 
-  # 4f. Blank ratio
-  if ("blank_ratio" %in% colnames(md)) {
-    p_blank <- ggplot(md, aes(x = blank_ratio)) +
-      geom_histogram(bins = 80, fill = "#E67E22", color = "white", linewidth = 0.1) +
-      geom_vline(xintercept = median(md$blank_ratio),
-                 color = "red", linetype = "dashed") +
-      labs(title = paste(sample_name, "— Blank ratio"),
-           subtitle = "Should be close to 0",
-           x = "blank / total transcripts", y = "N cells") +
-      theme_classic()
-  } else {
-    p_blank <- ggplot() + labs(title = "Blank ratio not computed") + theme_void()
-  }
-
-  # 4g. Spatial distribution — coordinates from FOV slot
+  # 4f. Spatial distribution — coordinates from FOV slot
   spatial_coords <- get_spatial_coords(obj)
   if (!is.null(spatial_coords) && sum(!is.na(spatial_coords$x)) > 0) {
     md_spatial        <- md
@@ -224,14 +177,14 @@ for (sample_name in names(samples)) {
 
   # Combine and save
   qc_panel <- (p_counts | p_genes | p_vol) /
-              (p_scatter | p_blank | plot_spacer()) /
+              (p_scatter | plot_spacer() | plot_spacer()) /
               (p_rfp | p_iba1 | p_cd8) /
               p_spatial
 
   ggsave(
     filename = file.path(QC_DIR, paste0("QC_", sample_name, "_before_filtering.pdf")),
     plot     = qc_panel,
-    width    = 20, height = 30
+    width    = 18, height = 22
   )
   message("QC plot saved for: ", sample_name)
 }
@@ -285,11 +238,12 @@ message("Summary CSV saved.")
 message("\n--- Applying QC filters ---")
 
 qc_thresholds <- list(
-  nCount_min   = 5,      # retire les quasi-vides
-  nFeature_min = 8,      # adapté à tes distributions
-  volume_min   = 50,     # artefacts de segmentation
-  volume_max   = 5000    # retire <1% des cellules
-  # pas de nCount_max — aucun outlier dans les données
+  nCount_min      = 5,      # debris / empty segmentations
+  nCount_max      = 500,    # potential doublets / merged cells
+  nFeature_min    = 5,      # very low quality cells
+  volume_min      = 50,     # µm³ — segmentation noise
+  volume_max      = 10000,  # µm³ — merged cells
+  blank_ratio_max = 0.1     # > 10% blank = poor detection quality
 )
 
 message("Thresholds applied:")
@@ -299,19 +253,32 @@ for (sample_name in names(samples)) {
   obj      <- samples[[sample_name]]
   md       <- obj@meta.data
   n_before <- ncol(obj)
-  
-  keep <- rep(TRUE, ncol(obj))  # ncol pas nrow
+
+  keep <- rep(TRUE, nrow(md))
+
   keep <- keep & (md$nCount_Vizgen   >= qc_thresholds$nCount_min)
+  keep <- keep & (md$nCount_Vizgen   <= qc_thresholds$nCount_max)
   keep <- keep & (md$nFeature_Vizgen >= qc_thresholds$nFeature_min)
-  keep <- keep & !is.na(md$volume) &
-          (md$volume >= qc_thresholds$volume_min) &
-          (md$volume <= qc_thresholds$volume_max)
+
+  if ("volume" %in% colnames(md)) {
+    keep <- keep & !is.na(md$volume) &
+            (md$volume >= qc_thresholds$volume_min) &
+            (md$volume <= qc_thresholds$volume_max)
+  }
+
+  if ("blank_ratio" %in% colnames(md)) {
+    keep <- keep & (md$blank_ratio <= qc_thresholds$blank_ratio_max)
+  }
+
+  # Safety: NA -> FALSE
   keep[is.na(keep)] <- FALSE
-  
+
   obj_filtered <- obj[, keep]
   n_after      <- ncol(obj_filtered)
+
   message(sample_name, ": ", n_before, " -> ", n_after,
-          " cells (", round((1 - n_after/n_before)*100, 1), "% removed)")
+          " cells (", round((1 - n_after / n_before) * 100, 1), "% removed)")
+
   samples[[sample_name]] <- obj_filtered
 }
 
@@ -343,7 +310,7 @@ for (sample_name in names(samples)) {
   ggsave(
     filename = file.path(QC_DIR, paste0("QC_", sample_name, "_before_vs_after.pdf")),
     plot     = p_compare,
-    width    = 14, height = 10
+    width    = 7, height = 5
   )
 }
 message("Before/after comparison plots saved.")
@@ -375,8 +342,6 @@ message("Post-filtering summary saved.")
 
 message("\nMerging filtered objects...")
 
-options(future.globals.maxSize = 2000 * 1024^2)
-
 slide4_merged_qc <- merge(
   samples$mock_6wpi,
   y            = samples$LCMV_1wpi,
@@ -387,57 +352,12 @@ slide4_merged_qc <- merge(
 message("Merged: ", ncol(slide4_merged_qc), " total cells")
 print(table(slide4_merged_qc@meta.data$sample))
 
-saveRDS(samples$mock_6wpi,  file.path(OBJ_DIR, "01_mock_6wpi_qc.rds"))
-saveRDS(samples$LCMV_1wpi,  file.path(OBJ_DIR, "01_LCMV_1wpi_qc.rds"))
-saveRDS(slide4_merged_qc,   file.path(OBJ_DIR, "01_slide4_merged_qc.rds"))
+saveRDS(samples$mock_6wpi,   file.path(OBJ_DIR, "01_mock_6wpi_qc.rds"))
+saveRDS(samples$LCMV_1wpi,   file.path(OBJ_DIR, "01_LCMV_1wpi_qc.rds"))
+saveRDS(slide4_merged_qc,    file.path(OBJ_DIR, "01_slide4_merged_qc.rds"))
 
 message("\nDone. Objects saved to: ", OBJ_DIR)
 message("QC figures and CSVs saved to: ", QC_DIR)
-
-# -------------------------------------------------------
-# 10. Test filtering impact on key downstream metrics
-# -------------------------------------------------------
-
-# # Tester différents seuils sur le mock
-# md <- mock@meta.data
-
-# # Impact de nFeature
-# for (thresh in c(5, 8, 10, 15)) {
-#   n <- sum(md$nFeature_Vizgen >= thresh)
-#   cat("nFeature >=", thresh, ":", n, "cellules gardées (",
-#       round(n/nrow(md)*100, 1), "%)\n")
-# }
-
-# # Impact de volume
-# for (thresh in c(3000, 5000, 8000, 10000)) {
-#   n <- sum(md$volume <= thresh, na.rm = TRUE)
-#   cat("volume <=", thresh, ":", n, "cellules gardées (",
-#       round(n/nrow(md)*100, 1), "%)\n")
-# }
-
-# # Impact de nCount_max sur le mock
-# for (thresh in c(100, 200, 300, 400, 500)) {
-#   n <- sum(md$nCount_Vizgen <= thresh)
-#   cat("nCount <=", thresh, ":", n, "cellules gardées (",
-#       round(n/nrow(md)*100, 1), "%)\n")
-# }
-
-# # Et regarder la queue haute — combien de cellules au-dessus de différents seuils
-# for (thresh in c(200, 300, 400, 500)) {
-#   n <- sum(md$nCount_Vizgen > thresh)
-#   cat("nCount >", thresh, ":", n, "cellules retirées\n")
-# }
-
-# md_lcmv <- lcmv_1wpi@meta.data
-
-# for (thresh in c(5, 8, 10, 15)) {
-#   n <- sum(md_lcmv$nFeature_Vizgen >= thresh)
-#   cat("nFeature >=", thresh, ":", n, "cellules gardées (",
-#       round(n/nrow(md_lcmv)*100, 1), "%)\n")
-# }
-
-# for (thresh in c(200, 300, 400, 500)) {
-#   n <- sum(md_lcmv$nCount_Vizgen > thresh)
-#   cat("nCount >", thresh, ":", n, "cellules retirées\n")
-# }
-
+message("\nIMPORTANT: review QC plots before proceeding.")
+message("Adjust thresholds in section 6 if needed and re-run.")
+message("\nNext step: 02_normalization.R")
