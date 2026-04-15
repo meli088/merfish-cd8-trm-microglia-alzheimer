@@ -9,7 +9,6 @@ data/raw/
 
 # Outputs temporaires
 results/tmp/
-scripts/01_QC.R
 data/slide4/region_R2/cell_metadata.csv
 data/slide4/region_R2/cell_by_gene.csv
 data/slide4/region_R2/detected_transcripts.csv
