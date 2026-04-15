@@ -1,0 +1,3 @@
+"sample","n_cells","median_counts","median_genes","min_counts","max_counts","pct5_counts","pct95_counts","pct5_genes","pct95_genes","median_blank_ratio","median_volume"
+"mock_6wpi",71943,16,12,1,335,2,71.8999999999942,2,37,0,1945.7
+"LCMV_1wpi",79841,22,16,1,414,3,82,3,41,0,1737.3
