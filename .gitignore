@@ -9,7 +9,6 @@ data/raw/
 
 # Outputs temporaires
 results/tmp/
-scripts/02_filtering.R
 data/slide4/region_R2/cell_metadata.csv
 data/slide4/region_R2/cell_by_gene.csv
 data/slide4/region_R2/detected_transcripts.csv
@@ -18,4 +17,3 @@ data/slide4/region_R3/cell_metadata.csv
 data/slide4/region_R3/detected_transcripts.csv
 data/slide4/region_R2/cell_boundaries.parquet
 data/slide4/region_R3/cell_boundaries.parquet
-scripts/02_normalization.R
