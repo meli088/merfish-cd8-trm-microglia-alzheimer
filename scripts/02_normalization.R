@@ -3,28 +3,23 @@
 # Project: LCMV MERFISH — TRM-Microglia niche analysis
 # Author: Mélina Farshchi
 # Date: 2026-04
-# Description: Normalization and dimensionality reduction of the
-#              QC-filtered merged object (114,588 cells).
+# Description: Normalization and dimensionality reduction.
 #              Follows Feng et al. (Immunity 2025) pipeline:
 #              - SCTransform per layer (one layer = one sample)
 #              - PCA on all 496 genes
 #              - Harmony batch correction via IntegrateLayers
 #              - UMAP to verify biology vs batch separation
-# Input:  objects/01_slide4_merged_qc.rds
-# Output: objects/02_slide4_normalized.rds
-#         outputs/normalization/  (figures)
-#
-# WORKFLOW:
-#   Run sections 1-5 first (up to elbow plot)
-#   → inspect elbow plot to choose N_PCS
-#   → set N_PCS in section 6
-#   → run sections 6-9
+# Input:  objects/01_all_merged_qc.rds
+# Output: objects/02_all_normalized.rds
+#         outputs/normalization/
 # =============================================================
 
 
 # -------------------------------------------------------
 # 1. Libraries
 # -------------------------------------------------------
+# remotes::install_github("satijalab/sctransform", ref = "main")
+# packageVersion("sctransform")
 
 library(Seurat)
 library(SeuratObject)
@@ -33,15 +28,22 @@ library(dplyr)
 library(patchwork)
 library(harmony)
 
+# Fail fast on known Seurat/SeuratObject API mismatch
+if (packageVersion("Seurat") < "5.4.0" || packageVersion("SeuratObject") < "5.4.0") {
+  stop(
+    "Incompatible package versions for SCTransform on layered assays. ",
+    "Please use Seurat >= 5.4.0 and SeuratObject >= 5.4.0. ",
+    "Current: Seurat=", as.character(packageVersion("Seurat")),
+    ", SeuratObject=", as.character(packageVersion("SeuratObject"))
+  )
+}
+
 OBJ_DIR  <- "objects"
 NORM_DIR <- "outputs/normalization"
 dir.create(NORM_DIR, showWarnings = FALSE, recursive = TRUE)
 
 options(future.globals.maxSize = 2000 * 1024^2)
 
-# Color palettes
-# FEATURE_COLS: yellow (low) -> orange -> dark red (high)
-# CONT_COLS:    white (low) -> dark blue (high) for metadata
 FEATURE_COLS <- c("#FFFFCC", "#FED976", "#FD8D3C", "#E31A1C", "#800026")
 CONT_COLS    <- c("#F7FBFF", "#C6DBEF", "#6BAED6", "#2171B5", "#084594")
 
@@ -49,21 +51,17 @@ CONT_COLS    <- c("#F7FBFF", "#C6DBEF", "#6BAED6", "#2171B5", "#084594")
 # -------------------------------------------------------
 # 2. Load QC-filtered merged object
 # -------------------------------------------------------
-
 message("Loading QC-filtered merged object...")
-obj <- readRDS(file.path(OBJ_DIR, "01_slide4_merged_qc.rds"))
+obj <- readRDS(file.path(OBJ_DIR, "01_all_merged_qc.rds"))
 
 message("Object: ", ncol(obj), " cells | ", nrow(obj), " genes")
 print(table(obj@meta.data$sample))
+print(table(obj@meta.data$slide))
 
 
 # -------------------------------------------------------
 # 3. Split into layers (one layer per sample)
 # -------------------------------------------------------
-# Feng et al.: "the data from different samples were segmented
-# into separate layers. Subsequently, SCTransform was applied
-# to each layer with clip.range = c(-10, 10)"
-
 message("\nSplitting into layers by sample...")
 obj <- JoinLayers(obj)
 obj[["Vizgen"]] <- split(obj[["Vizgen"]], f = obj$sample)
@@ -75,12 +73,6 @@ print(Layers(obj))
 # -------------------------------------------------------
 # 4. Normalization — SCTransform per layer
 # -------------------------------------------------------
-# SCTransform in one step:
-#   (a) normalizes counts (corrects for sequencing depth)
-#   (b) identifies highly variable genes (HVGs)
-#   (c) scales the data (Pearson residuals)
-# clip.range = c(-10, 10) limits extreme residuals
-
 message("\nRunning SCTransform per layer...")
 
 obj <- SCTransform(
@@ -90,18 +82,17 @@ obj <- SCTransform(
   verbose    = FALSE
 )
 
+if (!("SCT" %in% Assays(obj))) {
+  stop("SCTransform did not create the SCT assay. Check package versions and input assay layers.")
+}
+
 message("SCTransform done.")
 message("SCT assay: ", nrow(obj[["SCT"]]), " variable features identified")
 
 
 # -------------------------------------------------------
-# 4.5. Inspect highly variable genes (HVGs)
+# 4.5. Inspect highly variable genes
 # -------------------------------------------------------
-# SCTransform identified these HVGs internally.
-# We visualize them to understand which genes drive variation,
-# even though we will use ALL 496 genes for PCA (Feng et al.).
-
-
 hvg <- VariableFeatures(obj)
 message("Top 20 HVGs: ", paste(head(hvg, 20), collapse = ", "))
 
@@ -109,11 +100,6 @@ message("Top 20 HVGs: ", paste(head(hvg, 20), collapse = ", "))
 # -------------------------------------------------------
 # 5. PCA on ALL panel genes
 # -------------------------------------------------------
-# Feng et al.: "PCA was performed using all 500 genes"
-# We use all 496 genes — no HVG selection needed since the
-# MERFISH panel was pre-selected for biological relevance.
-# 50 PCs computed; N_PCS chosen after inspecting elbow plot.
-
 message("\nRunning PCA on all panel genes...")
 
 all_genes <- rownames(obj)
@@ -125,7 +111,6 @@ obj <- RunPCA(
   verbose  = FALSE
 )
 
-# Elbow plot — INSPECT THIS before setting N_PCS below
 p_elbow <- ElbowPlot(obj, ndims = 50) +
   labs(title    = "Elbow plot — PCA",
        subtitle = "Set N_PCS in section 6 based on where the curve flattens") +
@@ -139,26 +124,29 @@ message("Elbow plot saved — inspect before continuing!")
 
 # -------------------------------------------------------
 # STOP HERE — inspect elbow_plot.pdf before running section 6
-# Choose N_PCS = where the curve clearly flattens
 # -------------------------------------------------------
 
 
 # -------------------------------------------------------
 # 6. Harmony batch correction
 # -------------------------------------------------------
-# ADJUST N_PCS based on elbow plot before running this section
-# Current choice: 19 (curve flattens around PC 10-19 on our data)
-# Feng et al. used 30 (different dataset, more heterogeneous)
+# N_PCS chosen from elbow plot.
+# Harmony corrects for both sample AND slide batch effects.
+# vars_use = c("sample", "slide") handles:
+#   - sample-level differences (Mock vs LCMV timepoints)
+#   - slide-level differences (slide4 vs slide2 technical batch)
 
-N_PCS <- 19   # <-- adjust here after inspecting elbow plot
+N_PCS <- 19   # <-- adjust after inspecting elbow plot
 
 message("\nRunning Harmony batch correction (", N_PCS, " PCs)...")
+message("Correcting for: sample + slide")
 
 obj <- IntegrateLayers(
   object         = obj,
   method         = HarmonyIntegration,
   orig.reduction = "pca",
   new.reduction  = "harmony",
+  group.by.vars  = c("sample", "slide"),
   verbose        = FALSE
 )
 
@@ -168,7 +156,6 @@ message("Harmony done.")
 # -------------------------------------------------------
 # 7. Neighborhood graph and UMAP
 # -------------------------------------------------------
-
 message("\nBuilding neighbor graph and UMAP on Harmony embeddings...")
 
 obj <- FindNeighbors(obj, reduction = "harmony", dims = 1:N_PCS, verbose = FALSE)
@@ -178,13 +165,8 @@ message("UMAP done.")
 
 
 # -------------------------------------------------------
-# 8. Visualizations — assess batch correction
+# 8. Visualizations
 # -------------------------------------------------------
-# Key checks:
-# - sample UMAP: Mock and LCMV should overlap (not separate)
-# - nCount UMAP: should be uniform (no gradient = good normalization)
-# - IBA1/RFP: protein signals for reference
-
 message("\nGenerating visualizations...")
 
 p_sample <- DimPlot(
@@ -200,12 +182,24 @@ p_condition <- DimPlot(
   pt.size = 0.05, raster = FALSE
 ) + labs(title = "UMAP — LCMV vs Mock")
 
+# Timepoint — nouvelle variable utile avec 4 échantillons
+p_timepoint <- DimPlot(
+  obj, reduction = "umap", group.by = "timepoint",
+  pt.size = 0.05, raster = FALSE
+) + labs(title = "UMAP — Timepoint (1/3/6wpi + Mock)")
+
+# Slide — vérifier que les 2 slides se mélangent bien
+p_slide <- DimPlot(
+  obj, reduction = "umap", group.by = "slide",
+  pt.size = 0.05, raster = FALSE
+) + labs(title = "UMAP — Slide (slide2 vs slide4)")
+
 p_counts <- FeaturePlot(
   obj, features = "nCount_Vizgen",
   reduction = "umap", pt.size = 0.05,
   min.cutoff = 0, max.cutoff = "q95", raster = FALSE
 ) + scale_color_gradientn(colors = CONT_COLS) +
-  labs(title = "UMAP — nCount_Vizgen (should be uniform)")
+  labs(title = "UMAP — nCount_Vizgen")
 
 p_genes <- FeaturePlot(
   obj, features = "nFeature_Vizgen",
@@ -219,31 +213,31 @@ p_iba1 <- FeaturePlot(
   reduction = "umap", pt.size = 0.05,
   min.cutoff = "q10", max.cutoff = "q95", raster = FALSE
 ) + scale_color_gradientn(colors = FEATURE_COLS) +
-  labs(title = "UMAP — Anti-IBA1 (microglia protein signal)")
+  labs(title = "UMAP — Anti-IBA1 (microglia)")
 
 p_rfp <- FeaturePlot(
   obj, features = "Anti.RFP_raw",
   reduction = "umap", pt.size = 0.05,
   min.cutoff = "q10", max.cutoff = "q95", raster = FALSE
 ) + scale_color_gradientn(colors = FEATURE_COLS) +
-  labs(title = "UMAP — Anti-RFP (TRM-contact protein signal)")
+  labs(title = "UMAP — Anti-RFP (TRM-contact)")
 
-p_panel <- (p_sample | p_condition) /
-           (p_counts  | p_genes) /
-           (p_iba1    | p_rfp)
+p_panel <- (p_sample    | p_condition) /
+           (p_timepoint | p_slide) /
+           (p_counts    | p_genes) /
+           (p_iba1      | p_rfp)
 
 ggsave(file.path(NORM_DIR, paste0("UMAP_N", N_PCS, "PCs.pdf")),
-       p_panel, width = 14, height = 18)
+       p_panel, width = 14, height = 24)
 
-message("UMAP plots saved (filename includes N_PCS for comparison).")
+message("UMAP plots saved.")
 
 
 # -------------------------------------------------------
 # 9. Save
 # -------------------------------------------------------
+saveRDS(obj, file.path(OBJ_DIR, "02_all_normalized.rds"))
 
-saveRDS(obj, file.path(OBJ_DIR, "02_slide4_normalized.rds"))
-
-message("\nDone. Object saved: objects/02_slide4_normalized.rds")
+message("\nDone. Object saved: objects/02_all_normalized.rds")
 message("N_PCS used: ", N_PCS)
 message("Figures in: ", NORM_DIR)

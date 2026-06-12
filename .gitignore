@@ -1,19 +1,42 @@
-# R
+# R session artifacts
 .Rhistory
 .RData
 .Rproj.user/
 *.Rproj
 
-# Données lourdes
-data/raw/
+# Large objects (Seurat / SPE .rds)
+objects/
 
-# Outputs temporaires
+# Analysis outputs and results
+outputs/
 results/tmp/
-data/slide4/region_R2/cell_metadata.csv
-data/slide4/region_R2/cell_by_gene.csv
-data/slide4/region_R2/detected_transcripts.csv
-data/slide4/region_R3/cell_by_gene.csv
-data/slide4/region_R3/cell_metadata.csv
-data/slide4/region_R3/detected_transcripts.csv
-data/slide4/region_R2/cell_boundaries.parquet
-data/slide4/region_R3/cell_boundaries.parquet
+
+# Raw and large data files
+data/raw/
+data/slide2/
+data/slide4/region_R2/
+data/slide4/region_R3/
+
+# Execution logs
+run*.txt
+
+# Root-level intermediate files
+ncells_by_sample_lam02_res09_joint_long.csv
+diagnose_banksy.R
+
+# AI assistant context
+.claude/
+
+# Documentation (un README dédié sera ajouté plus tard)
+*.md
+
+# Archived / superseded scripts — not part of the reproducible pipeline
+scripts/old_scripts/
+scripts/*_RC.R
+scripts/05_banksy_umap.R
+scripts/08_figures_validation.R
+scripts/21_rfp_signal_check.R
+scripts/23_spatial_grid_100um.R
+scripts/27_dam_signature_diagnostic.R
+scripts/16_ifng_by_immune_celltype.R
+scripts/16_ifng_by_immune_celltype_fixed.R
