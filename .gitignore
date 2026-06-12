@@ -11,11 +11,10 @@ objects/
 outputs/
 results/tmp/
 
-# Raw and large data files
-data/raw/
-data/slide2/
-data/slide4/region_R2/
-data/slide4/region_R3/
+# Raw and large data files — not versioned
+data/
+notebooks/
+results/
 
 # Execution logs
 run*.txt
@@ -27,8 +26,12 @@ diagnose_banksy.R
 # AI assistant context
 .claude/
 
-# Documentation (un README dédié sera ajouté plus tard)
-*.md
+# Documentation (sauf README.md)
+ARCHIVE_SCRIPTS.md
+MANUAL_STEPS.md
+PIPELINE_ORDER.md
+README_pipeline.md
+TODO_reproducibility.md
 
 # Archived / superseded scripts — not part of the reproducible pipeline
 scripts/old_scripts/
