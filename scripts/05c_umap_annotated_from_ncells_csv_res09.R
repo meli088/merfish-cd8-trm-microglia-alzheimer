@@ -108,7 +108,8 @@ save_plot_pdf_jpg <- function(plot_obj, base_path, width, height) {
 }
 
 save_heatmap_pair <- function(avg_mat, title, out_base, gaps_row = NULL, labels_row = NULL,
-                              w = 12, h = 10, label_scale = 1) {
+                              w = 12, h = 10, label_scale = 1,
+                              col_label_scale = 1, angle_col = 45) {
   if (is.null(avg_mat) || nrow(avg_mat) == 0 || ncol(avg_mat) == 0) {
     message("Heatmap ignorée: matrice vide")
     return(invisible(NULL))
@@ -125,7 +126,7 @@ save_heatmap_pair <- function(avg_mat, title, out_base, gaps_row = NULL, labels_
   w_auto <- max(w, 7 + 0.6 * n_groups)
   h_auto <- max(h, 5 + 0.2 * n_genes)
   fs_row <- max(5, min(9, 260 / max(25, n_genes))) * label_scale
-  fs_col <- max(7, min(10, 130 / max(8, n_groups))) * label_scale
+  fs_col <- max(7, min(10, 130 / max(8, n_groups))) * col_label_scale
 
   labels_col_wrapped <- vapply(
     colnames(avg_scaled),
@@ -145,7 +146,7 @@ save_heatmap_pair <- function(avg_mat, title, out_base, gaps_row = NULL, labels_
       labels_col = labels_col_wrapped,
       fontsize_row = fs_row,
       fontsize_col = fs_col,
-      angle_col = 45,
+      angle_col = angle_col,
       border_color = NA,
       main = title,
       gaps_row = gaps_row,
@@ -442,7 +443,9 @@ if (length(genes_ok) > 0) {
       labels_row = as.character(topN$gene),
       w = 12,
       h = max(10, 0.45 * nrow(heat_mat)),
-      label_scale = ifelse(top_n == 2, 1.3, 1)
+      label_scale = ifelse(top_n == 2, 3, 1),
+      col_label_scale = ifelse(top_n == 2, 1.6, 1),
+      angle_col = ifelse(top_n == 2, 90, 45)
     )
 
     if (top_n == 2) {
@@ -454,7 +457,9 @@ if (length(genes_ok) > 0) {
         labels_row = as.character(topN$gene),
         w = 12,
         h = max(10, 0.45 * nrow(heat_mat)),
-        label_scale = 1.3
+        label_scale = 3,
+        col_label_scale = 1.6,
+        angle_col = 90
       )
     }
   }
