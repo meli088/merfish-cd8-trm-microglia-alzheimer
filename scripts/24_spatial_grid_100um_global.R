@@ -75,7 +75,7 @@ RES_TARGET    <- 0.9
 IMMUNE_LABEL  <- "Immune (Acod1)"
 IFN_LABEL     <- "IFN responsive (Ifit1)"
 
-SAMPLE_ORDER  <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER  <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 sample_labels <- c(mock_6wpi = "Mock 6 wpi", LCMV_1wpi = "LCMV 1 wpi",
                    LCMV_3wpi = "LCMV 3 wpi", LCMV_6wpi = "LCMV 6 wpi")
 

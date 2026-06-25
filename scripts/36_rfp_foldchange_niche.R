@@ -67,7 +67,7 @@ setwd(normalizePath("."))   # Run from project root
 OBJ_SEURAT   <- file.path("objects", "03_rfp_analysis.rds")
 OUT_DIR      <- file.path("outputs", "rfp_foldchange_niche")
 
-SAMPLE_ORDER <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 
 # Cell types defining the niche of interest
 NICHE_GROUPS <- c("Immune (Acod1)", "IFN responsive (Ifit1)")

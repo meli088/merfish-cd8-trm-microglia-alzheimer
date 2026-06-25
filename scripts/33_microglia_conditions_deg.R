@@ -58,7 +58,7 @@ source("scripts/00_palette.R")
 # Global parameters
 # =============================================================
 
-SAMPLE_ORDER           <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER           <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 MICROGLIA_GLOBAL_LABEL <- "Microglia (P2ry12)"
 LAM                    <- 0.2
 RES_TARGET             <- 0.9

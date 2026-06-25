@@ -11,9 +11,7 @@
 #   between temporal conditions and produce one volcano plot per
 #   cell type × contrast.
 #
-# Contrasts (for each cell type):
-#   LCMV_1wpi vs mock_6wpi
-#   LCMV_6wpi vs mock_6wpi
+# Contrast (for each cell type):
 #   LCMV_6wpi vs LCMV_1wpi
 #
 # Inputs:
@@ -48,7 +46,7 @@ source("scripts/00_palette.R")
 # Global parameters
 # =============================================================
 
-SAMPLE_ORDER <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 FDR_CUTOFF   <- 0.05
 FC_CUTOFF    <- 0.25
 TOP_N_LABEL  <- 15
@@ -81,8 +79,6 @@ direction_colors <- c(
 )
 
 CONTRASTS <- list(
-  list(id1 = "LCMV_1wpi", id2 = "mock_6wpi"),
-  list(id1 = "LCMV_6wpi", id2 = "mock_6wpi"),
   list(id1 = "LCMV_6wpi", id2 = "LCMV_1wpi")
 )
 
@@ -366,7 +362,7 @@ for (ct in cell_types) {
 }
 
 # =============================================================
-# SECTION 3 — Summary figure: nDEG by cell type × contrast
+# SECTION 3 — Summary figure: nDEG by cell type (6wpi vs 1wpi)
 # =============================================================
 
 message("\n=== SECTION 3: Summary nDEG figure ===\n")
@@ -377,17 +373,13 @@ if (length(ndeg_records) == 0) {
 
   summary_df <- bind_rows(ndeg_records) %>%
     mutate(
-      n_total_plot = ifelse(skipped, NA_integer_, n_total),
-      contrast_label = recode(contrast,
-        "lcmv_1wpi_vs_mock_6wpi" = "1wpi vs Mock",
-        "lcmv_6wpi_vs_mock_6wpi" = "6wpi vs Mock",
-        "lcmv_6wpi_vs_lcmv_1wpi" = "6wpi vs 1wpi"
-      ),
-      contrast_label = factor(contrast_label,
-        levels = c("1wpi vs Mock", "6wpi vs Mock", "6wpi vs 1wpi"))
+      n_total_plot = ifelse(skipped, 0L, n_total),
+      n_up_plot = ifelse(skipped | is.na(n_up), 0L, n_up),
+      n_down_plot = ifelse(skipped | is.na(n_down), 0L, n_down),
+      contrast_label = factor("6wpi vs 1wpi", levels = "6wpi vs 1wpi")
     )
 
-  # Order cell types by total nDEG across all contrasts
+  # Order cell types by total nDEG for 6wpi vs 1wpi
   ct_order <- summary_df %>%
     group_by(cell_type) %>%
     summarise(total = sum(n_total_plot, na.rm = TRUE), .groups = "drop") %>%
@@ -404,43 +396,58 @@ if (length(ndeg_records) == 0) {
   message("  Saved: ndeg_summary_table.csv")
 
   # --- Barplot ---
+  summary_long <- summary_df %>%
+    select(cell_type, n_up_plot, n_down_plot, n_total_plot) %>%
+    pivot_longer(
+      cols = c(n_up_plot, n_down_plot),
+      names_to = "direction",
+      values_to = "n_deg"
+    ) %>%
+    mutate(
+      direction = factor(
+        direction,
+        levels = c("n_down_plot", "n_up_plot"),
+        labels = c("Down in 6wpi", "Up in 6wpi")
+      )
+    )
+
   p_summary <- ggplot(
-    summary_df %>% filter(!skipped),
-    aes(x = cell_type, y = n_total_plot, fill = contrast_label)
+    summary_long,
+    aes(x = cell_type, y = n_deg, fill = direction)
   ) +
-    geom_col(position = position_dodge(width = 0.75), width = 0.7,
-             colour = "grey30", linewidth = 0.25) +
+    geom_col(width = 0.7, colour = "grey30", linewidth = 0.25) +
     geom_text(
-      aes(label = ifelse(n_total_plot > 0, n_total_plot, "")),
-      position = position_dodge(width = 0.75),
+      data = summary_df,
+      aes(x = cell_type,
+          y = n_total_plot,
+          label = ifelse(
+            n_total_plot > 0,
+            paste0(n_up_plot, " up / ", n_down_plot, " down"),
+            ""
+          )),
       hjust    = -0.15,
       size     = 2.8,
-      colour   = "grey20"
+      colour   = "grey20",
+      inherit.aes = FALSE
     ) +
     coord_flip() +
     scale_fill_manual(
-      values = c(
-        "1wpi vs Mock" = "#56B4E9",
-        "6wpi vs Mock" = "#D55E00",
-        "6wpi vs 1wpi" = "#7B2D8B"
-      ),
-      name = "Contrast"
+      values = c("Down in 6wpi" = "#2166AC", "Up in 6wpi" = "#B2182B"),
+      name = NULL
     ) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
     labs(
-      title    = "Number of significant DEGs per cell type and contrast",
+      title    = "Number of significant DEGs per cell type",
       subtitle = paste0("FDR \u2264 ", FDR_CUTOFF, "  |  |log2FC| > ", FC_CUTOFF,
-                        "  |  Immune sub-cluster (08_immune_annotated)"),
+                        "  |  Contrast: LCMV 6wpi vs LCMV 1wpi"),
       x        = NULL,
-      y        = "N significant DEGs (up + down)"
+      y        = "N significant DEGs"
     ) +
     theme_bw(base_size = 10) +
     theme(
       plot.title       = element_text(face = "bold", size = 11, hjust = 0),
       plot.subtitle    = element_text(size = 8, colour = "grey40", hjust = 0),
       legend.position  = "right",
-      legend.text      = element_text(size = 9),
-      legend.title     = element_text(size = 9, face = "bold"),
       panel.grid.minor = element_blank(),
       panel.grid.major.y = element_blank(),
       panel.grid.major.x = element_line(colour = "grey90", linewidth = 0.3),

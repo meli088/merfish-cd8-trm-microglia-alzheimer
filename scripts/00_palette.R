@@ -17,6 +17,8 @@ GLOBAL_PALETTE <- c(
 
   # Sous-clusters de la niche immune
   "T cells (Gzmb)"                       = "#E41A1C",
+  "Cycling CD8 T cells (Gzma)"           = "#E41A1C",
+  "T CD4 (Foxp3)"                        = "#FF7F7F",
   "Mac (Ctss)"                          = "#984EA3",
   "Mono (Lyz2)"                         = "#4DAF4A",
   "Microglia (C1qa)"                    = "#377EB8",
@@ -61,7 +63,8 @@ ANNOTATION_ORDER <- c(
   "Immune (Acod1)",
   "IFN responsive (Ifit1)",
   "Microglia (P2ry12)",
-  "T cells (Gzmb)", "Mac (Ctss)",
+  "T cells (Gzmb)", "T CD4 (Foxp3)", "Mac (Ctss)",
+  "Cycling CD8 T cells (Gzma)",
   "Mono (Lyz2)", "Microglia (C1qa)", "B cells (Cd19)",
   "T cell / Neuron doublet / Cycling 1",
   "Astrocytes (Fgfr3)", "Astrocytes (Gfap)",
@@ -80,6 +83,7 @@ ANNOTATION_ORDER <- c(
 # Ordre étendu (inclut sous-clusters IFN / immune)
 ANNOTATION_ORDER_EXTENDED <- c(
   ANNOTATION_ORDER,
+  "T CD4 (Foxp3)",
   "Excitatory neurons (Satb2)",
   "Inhibitory neurons (Htr2c)",
   "Neurons (Fam107a)",
@@ -91,6 +95,26 @@ ANNOTATION_ORDER_EXTENDED <- c(
   "Vascular",
   "Vascular (Igfbp2)",
   "Unknown"
+)
+
+# Palette immune dédiée pour les 17 sous-clusters immune (lam02_res03)
+IMMUNE_PALETTE <- c(
+  "Cycling CD8 T cells (Gzma)"              = "#E41A1C",
+  "Oligodendrocytes (Plp1)"                 = "#17BECF",
+  "Activated B cells (Cd19)"                = "#1F77B4",
+  "Activated microglia (C1qa)"              = "#FF7F0E",
+  "Activated vascular cells (Pecam1)"       = "#E377C2",
+  "Antigen-presenting myeloid cells (Cd74)" = "#2CA02C",
+  "Excitatory neurons (Satb2)"              = "#FFBB78",
+  "Fibroblast-like cells (Dcn)"             = "#9467BD",
+  "Inflammatory monocytes (Lyz2)"           = "#7CB342",
+  "Inhibitory neurons (Drd1)"               = "#BC3F59",
+  "Mixed neuronal population (Rbfox3)"      = "#989898",
+  "Neuron-myeloid doublets (Map2)"          = "#98DF8A",
+  "OPC-like progenitors (Pdgfra)"           = "#5DA5DA",
+  "Reactive astrocytes (Gfap)"              = "#B0B0D5",
+  "Regulatory T cells (Foxp3)"              = "#FF7F7F",
+  "T cell-neuron doublets (Gzmb)"           = "#4DAF4A"
 )
 
 # Helper : ordonne un vecteur d'annotations selon ANNOTATION_ORDER(_EXTENDED)

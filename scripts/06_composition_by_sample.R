@@ -36,6 +36,11 @@ if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 }
 
+output_dir_ok <- "outputs/banksy/umap_annotated_OK"
+if (!dir.exists(output_dir_ok)) {
+  dir.create(output_dir_ok, recursive = TRUE, showWarnings = FALSE)
+}
+
 # ============================================================================
 # STEP 1: Load SpatialExperiment object and extract clustering
 # ============================================================================
@@ -139,12 +144,16 @@ cat("  - Cells with annotation:", sum(!is.na(cell_meta$annotation)), "\n")
 cat("\n[Step 4] Calculating composition by sample...\n")
 
 # Define sample order for consistent visualization
-sample_order <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+sample_order <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 
 # Count cells per sample per annotation
 composition <- cell_meta %>%
   filter(!is.na(annotation)) %>%  # Exclude unmapped clusters
   mutate(annotation = trimws(annotation)) %>%  # Final trim to ensure consistency
+  mutate(annotation = dplyr::recode(
+    annotation,
+    "Prolif neural/glial (Ccdc153)" = "Ependymal (Ccdc153)"
+  )) %>%
   group_by(sample, annotation) %>%
   summarise(n_cells = n(), .groups = "drop") %>%
   # Calculate percentage within each sample
@@ -226,10 +235,16 @@ anno_ordered <- order_annotations(annotations_unique)
 # Préparer les données avec le bon ordre de facteur
 composition_plot <- composition_long %>%
   mutate(
-    sample     = factor(sample, levels = sample_order),
+    sample     = factor(sample, levels = sample_order,
+                        labels = c("LCMV 1wpi", "LCMV 3wpi", "LCMV 6wpi", "Mock 6wpi")),
     annotation = factor(annotation, levels = anno_ordered)
   ) %>%
   arrange(sample, annotation)
+
+composition_palette <- c(
+  GLOBAL_PALETTE,
+  "Ependymal (Ccdc153)" = GLOBAL_PALETTE[["Prolif neural/glial (Ccdc153)"]]
+)
 
 ## (debug prints removed)
 
@@ -237,7 +252,7 @@ composition_plot <- composition_long %>%
 p <- ggplot(composition_plot, aes(x = sample, y = pct_cells, fill = annotation)) +
   geom_bar(stat = "identity", position = "stack", width = 0.6) +
   scale_fill_manual(
-    values = GLOBAL_PALETTE,
+    values = composition_palette,
     na.value = "grey70",
     name = "Annotation",
     guide = guide_legend(
@@ -296,6 +311,32 @@ ggsave(
   device = "jpg"
 )
 cat("  - Saved JPG to:", jpg_output, "\n")
+
+# Also export OK-named copies for figure assembly scripts
+csv_output_ok <- file.path(output_dir_ok, "composition_by_sample_long.csv")
+pdf_output_ok <- file.path(output_dir_ok, "composition_by_sample_stackedbar.pdf")
+jpg_output_ok <- file.path(output_dir_ok, "composition_by_sample_stackedbar_OK.jpg")
+
+write.csv(composition_long, csv_output_ok, row.names = FALSE)
+ggsave(
+  pdf_output_ok,
+  plot = p,
+  width = 10,
+  height = 7,
+  dpi = 300,
+  device = "pdf"
+)
+ggsave(
+  jpg_output_ok,
+  plot = p,
+  width = 10,
+  height = 7,
+  dpi = 300,
+  device = "jpg"
+)
+cat("  - Saved CSV (OK) to:", csv_output_ok, "\n")
+cat("  - Saved PDF (OK) to:", pdf_output_ok, "\n")
+cat("  - Saved JPG (OK) to:", jpg_output_ok, "\n")
 
 # ============================================================================
 # STEP 8: Print final summary

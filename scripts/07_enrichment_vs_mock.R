@@ -44,8 +44,8 @@ if (!"sample" %in% colnames(comp)) {
 
 # Ensure sample ordering and mapping to numeric timepoints
 sample_map <- tibble(
-  sample = c("mock_6wpi","LCMV_1wpi","LCMV_3wpi","LCMV_6wpi"),
-  timepoint = c(0,1,3,6)
+  sample = c("LCMV_1wpi","LCMV_3wpi","LCMV_6wpi","mock_6wpi"),
+  timepoint = c(1,3,6,0)
 )
 
 comp2 <- comp %>%

@@ -60,7 +60,7 @@ if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE,
 # Parameters
 # =============================================================
 
-SAMPLE_ORDER <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 
 sample_labels <- c(
   mock_6wpi = "Mock 6 wpi",

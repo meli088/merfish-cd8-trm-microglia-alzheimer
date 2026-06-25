@@ -52,7 +52,7 @@ setwd(normalizePath("."))   # Run from project root
 OBJ_SEURAT   <- file.path("objects", "03_rfp_analysis.rds")
 OUT_DIR      <- file.path("outputs", "rfp_by_celltype")
 
-SAMPLE_ORDER <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 MOCK_PATTERN <- "mock"   # case-insensitive grep on $sample
 THRESHOLD_Q  <- 0.99     # quantile applied directly to raw mock values
 

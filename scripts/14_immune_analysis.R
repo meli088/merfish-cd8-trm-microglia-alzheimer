@@ -195,6 +195,27 @@ umap_mat <- as.data.frame(so@reductions[["umap"]]@cell.embeddings)
 colnames(umap_mat) <- c("UMAP1", "UMAP2")
 umap_mat$sample <- so@meta.data$sample
 
+# Charger l'override cell_type depuis l'objet annoté 08 (T CD4 splitting, etc.)
+cell_type_override <- NULL
+obj08 <- file.path("objects", "08_immune_annotated_lam02_res03.rds")
+if (safe_label == "immune_acod1" && file.exists(obj08)) {
+  tryCatch({
+    se08 <- readRDS(obj08)
+    if ("cell_type" %in% colnames(colData(se08))) {
+      common_cells <- intersect(colnames(so), colnames(se08))
+      if (length(common_cells) > 0) {
+        cell_type_override <- setNames(
+          as.character(colData(se08)[common_cells, "cell_type"]),
+          common_cells
+        )
+        message("  cell_type override chargé depuis 08 : ", length(cell_type_override), " cellules")
+        message("  Types dans override : ", paste(sort(unique(cell_type_override)), collapse = ", "))
+      }
+    }
+    rm(se08)
+  }, error = function(e) message("  WARNING: could not load 08 object: ", conditionMessage(e)))
+}
+
 RES_SEQ <- seq(0.1, 0.5, by = 0.1)
 
 # Canonical cell-type markers for dot plot
@@ -238,6 +259,19 @@ for (res in RES_SEQ) {
     disp_order <- raw_levels
     cell_disp  <- domain_labels
   }
+
+  # Appliquer override per-cellule si disponible (ex : T CD4 / T CD8 splitting)
+  if (!is.null(cell_type_override)) {
+    so_cells <- colnames(so)
+    ovr_idx  <- which(so_cells %in% names(cell_type_override))
+    if (length(ovr_idx) > 0) {
+      cell_disp[ovr_idx] <- cell_type_override[so_cells[ovr_idx]]
+      bio_lvls   <- unique(cell_disp[!grepl("^Domain_", cell_disp)])
+      dom_lvls   <- unique(cell_disp[ grepl("^Domain_", cell_disp)])
+      disp_order <- c(order_annotations(bio_lvls), dom_lvls)
+    }
+  }
+
   so@meta.data[[display_var]] <- factor(cell_disp, levels = disp_order)
   dom_colors <- build_ct_colors(disp_order)
 
@@ -328,6 +362,36 @@ for (res in RES_SEQ) {
     p_grid, width = 10, height = 8, dpi = 300
   )
   message("  UMAP 2×2 grid saved")
+
+  # ── 2b. UMAP merged — tous les timepoints combinés ──────────
+  p_merged <- ggplot(udf, aes(UMAP1, UMAP2, color = cluster)) +
+    geom_point(size = 0.8, alpha = 0.7, stroke = 0) +
+    scale_color_manual(values = dom_colors, drop = FALSE) +
+    labs(
+      title = paste0(IMMUNE_LABEL, " — BANKSY sub-clusters (res=", res, ") — all timepoints"),
+      color = "Cell type"
+    ) +
+    guides(color = guide_legend(
+      override.aes = list(size = 3, alpha = 1),
+      ncol = 1
+    )) +
+    theme_classic(base_size = 10) +
+    theme(
+      axis.text        = element_blank(),
+      axis.ticks       = element_blank(),
+      legend.position  = "right",
+      plot.title       = element_text(face = "bold", size = 11)
+    )
+
+  ggsave(
+    file.path(fig_dir, paste0("umap_merged_res", res_id, ".pdf")),
+    p_merged, width = 7, height = 6
+  )
+  ggsave(
+    file.path(fig_dir, paste0("umap_merged_res", res_id, ".jpg")),
+    p_merged, width = 7, height = 6, dpi = 300
+  )
+  message("  UMAP merged saved")
 
   # ── 3. Composition — 100% stacked bar (all samples) ─────────
   comp <- so@meta.data %>%

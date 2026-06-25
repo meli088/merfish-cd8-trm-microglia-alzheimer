@@ -58,9 +58,10 @@ source("scripts/00_palette.R")
 # Global parameters
 # =============================================================
 
-SAMPLE_ORDER           <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER           <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 MICROGLIA_GLOBAL_LABEL <- "Microglia (P2ry12)"   # out niche — global object
-MICROGLIA_NICHE_LABEL  <- "Microglia (C1qa)"      # in niche  — object 08
+# in niche (Immune/Acod1 niche microglia) — object 08 naming can vary by script/version
+MICROGLIA_NICHE_LABEL_CANDIDATES <- c("Activated microglia (C1qa)", "Microglia (C1qa)")
 LAM                    <- 0.2
 RES_TARGET             <- 0.9
 DISTANCE_THRESHOLDS    <- c(100, 200, 300)          # seuils µm pour Section 4
@@ -206,15 +207,20 @@ se_niche <- readRDS(niche_file)
 message("  ", ncol(se_niche), " cells | class: ", class(se_niche)[1])
 
 cell_type_niche <- as.character(colData(se_niche)$cell_type)
-if (!MICROGLIA_NICHE_LABEL %in% cell_type_niche) {
-  stop("Label '", MICROGLIA_NICHE_LABEL, "' not found in se_niche$cell_type.\n",
-       "Present: ", paste(sort(unique(cell_type_niche)), collapse = ", "))
+microglia_niche_label <- MICROGLIA_NICHE_LABEL_CANDIDATES[
+  MICROGLIA_NICHE_LABEL_CANDIDATES %in% unique(cell_type_niche)
+][1]
+
+if (is.na(microglia_niche_label)) {
+  stop("None of in-niche labels found in se_niche$cell_type: ",
+       paste(MICROGLIA_NICHE_LABEL_CANDIDATES, collapse = ", "),
+       "\nPresent: ", paste(sort(unique(cell_type_niche)), collapse = ", "))
 }
 
-in_idx <- which(cell_type_niche == MICROGLIA_NICHE_LABEL)
+in_idx <- which(cell_type_niche == microglia_niche_label)
 se_in  <- se_niche[, in_idx]
 colData(se_in)$niche_status <- "In niche"
-message("\nIn-niche [", MICROGLIA_NICHE_LABEL, "]: ", ncol(se_in), " cells")
+message("\nIn-niche [", microglia_niche_label, "]: ", ncol(se_in), " cells")
 cat("  Per sample:\n")
 print(table(as.character(colData(se_in)$sample)))
 

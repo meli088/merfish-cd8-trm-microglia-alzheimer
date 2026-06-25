@@ -42,6 +42,7 @@ library(ggplot2)
 library(dplyr)
 library(readr)
 library(pheatmap)
+library(Cairo)
 
 # -------------------------------------------------------
 # 2. Parameters
@@ -55,13 +56,19 @@ dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 LAM          <- 0.2
 RES_TARGET   <- 0.9
 SEED         <- 1997
-SAMPLE_ORDER <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 
 # Palette et ordre des annotations (fichier partagé)
 source("scripts/00_palette.R")
 
+RENAME_ANNOT <- c("Prolif neural/glial (Ccdc153)" = "Ependymal (Ccdc153)")
+GLOBAL_PALETTE_LOCAL <- c(
+  GLOBAL_PALETTE,
+  "Ependymal (Ccdc153)" = GLOBAL_PALETTE[["Prolif neural/glial (Ccdc153)"]]
+)
+
 # Ordre des colonnes pour la heatmap DEG — aligné sur ANNOTATION_ORDER
-CLUSTER_ORDER <- ANNOTATION_ORDER
+CLUSTER_ORDER <- dplyr::recode(ANNOTATION_ORDER, !!!RENAME_ANNOT)
 
 # -------------------------------------------------------
 # 3. Helpers
@@ -100,7 +107,8 @@ save_plot_pdf_jpg <- function(plot_obj, base_path, width, height) {
   message("Saved: ", basename(base_path), ".pdf / .jpg")
 }
 
-save_heatmap_jpg <- function(avg_mat, title, out_jpg, gaps_row = NULL, labels_row = NULL, w = 12, h = 10) {
+save_heatmap_pair <- function(avg_mat, title, out_base, gaps_row = NULL, labels_row = NULL,
+                              w = 12, h = 10, label_scale = 1) {
   if (is.null(avg_mat) || nrow(avg_mat) == 0 || ncol(avg_mat) == 0) {
     message("Heatmap ignorée: matrice vide")
     return(invisible(NULL))
@@ -116,8 +124,8 @@ save_heatmap_jpg <- function(avg_mat, title, out_jpg, gaps_row = NULL, labels_ro
   # Auto-ajustement pour éviter le chevauchement des labels.
   w_auto <- max(w, 7 + 0.6 * n_groups)
   h_auto <- max(h, 5 + 0.2 * n_genes)
-  fs_row <- max(5, min(9, 260 / max(25, n_genes)))
-  fs_col <- max(7, min(10, 130 / max(8, n_groups)))
+  fs_row <- max(5, min(9, 260 / max(25, n_genes))) * label_scale
+  fs_col <- max(7, min(10, 130 / max(8, n_groups))) * label_scale
 
   labels_col_wrapped <- vapply(
     colnames(avg_scaled),
@@ -125,27 +133,39 @@ save_heatmap_jpg <- function(avg_mat, title, out_jpg, gaps_row = NULL, labels_ro
     character(1)
   )
 
-  pheatmap(
-    avg_scaled,
-    color = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100),
-    cluster_rows = FALSE,
-    cluster_cols = FALSE,
-    show_rownames = TRUE,
-    show_colnames = TRUE,
-    labels_row = labels_row,
-    labels_col = labels_col_wrapped,
-    fontsize_row = fs_row,
-    fontsize_col = fs_col,
-    angle_col = 45,
-    border_color = NA,
-    main = title,
-    gaps_row = gaps_row,
-    legend = FALSE,
-    filename = out_jpg,
-    width = w_auto,
-    height = h_auto
-  )
+  render_heatmap <- function() {
+    pheatmap(
+      avg_scaled,
+      color = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100),
+      cluster_rows = FALSE,
+      cluster_cols = FALSE,
+      show_rownames = TRUE,
+      show_colnames = TRUE,
+      labels_row = labels_row,
+      labels_col = labels_col_wrapped,
+      fontsize_row = fs_row,
+      fontsize_col = fs_col,
+      angle_col = 45,
+      border_color = NA,
+      main = title,
+      gaps_row = gaps_row,
+      legend = FALSE
+    )
+  }
 
+  out_pdf <- paste0(out_base, ".pdf")
+  out_jpg <- paste0(out_base, ".jpg")
+
+  CairoPDF(out_pdf, width = w_auto, height = h_auto)
+  render_heatmap()
+  dev.off()
+
+  CairoJPEG(out_jpg, width = round(w_auto * 150), height = round(h_auto * 150),
+            res = 150, quality = 95)
+  render_heatmap()
+  dev.off()
+
+  message("Saved: ", basename(out_pdf))
   message("Saved: ", basename(out_jpg))
 }
 
@@ -207,7 +227,7 @@ annot_long <- read_delim(
   select(-matches("^Unnamed")) %>%
   mutate(
     banksy_domain = as.character(banksy_domain),
-    annotation = trimws(as.character(annotation)),
+    annotation = dplyr::recode(trimws(as.character(annotation)), !!!RENAME_ANNOT),
     sample = as.character(sample)
   )
 
@@ -267,6 +287,7 @@ umap_coords <- umap_coords %>%
   left_join(annotation_map, by = "banksy_domain")
 
 umap_coords$annotation[is.na(umap_coords$annotation) | umap_coords$annotation == ""] <- "Non annote"
+umap_coords$annotation <- dplyr::recode(umap_coords$annotation, !!!RENAME_ANNOT)
 
 # Ordonner les niveaux selon ANNOTATION_ORDER (inconnus en fin)
 annotation_levels <- order_annotations(unique(as.character(umap_coords$annotation)))
@@ -283,7 +304,7 @@ n_domains <- n_distinct(umap_coords$banksy_domain)
 
 p_global <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = annotation)) +
   geom_point(size = 0.05, alpha = 0.5) +
-  scale_color_manual(values = GLOBAL_PALETTE, na.value = "grey70", drop = FALSE, na.translate = FALSE) +
+  scale_color_manual(values = GLOBAL_PALETTE_LOCAL, na.value = "grey70", drop = FALSE, na.translate = FALSE) +
   labs(
     title = paste0("BANKSY UMAP annoté — lambda=", LAM, " | res=", RES_TARGET),
     subtitle = paste0(
@@ -311,7 +332,7 @@ save_plot_pdf_jpg(
 # -------------------------------------------------------
 p_split <- ggplot(umap_coords, aes(x = UMAP1, y = UMAP2, color = annotation)) +
   geom_point(size = 0.05, alpha = 0.5) +
-  scale_color_manual(values = GLOBAL_PALETTE, na.value = "grey70", drop = FALSE, na.translate = FALSE) +
+  scale_color_manual(values = GLOBAL_PALETTE_LOCAL, na.value = "grey70", drop = FALSE, na.translate = FALSE) +
   facet_wrap(~ sample, ncol = 2) +
   labs(
     title = paste0("BANKSY UMAP annoté par échantillon — lambda=", LAM, " | res=", RES_TARGET),
@@ -412,15 +433,30 @@ if (length(genes_ok) > 0) {
     block_sizes <- as.integer(table(topN$cluster))
     gaps_row <- if (length(block_sizes) > 1) cumsum(block_sizes)[-length(block_sizes)] else NULL
 
-    save_heatmap_jpg(
+    out_base <- file.path(OUT_DIR, paste0("heatmap_annotated_lam02_res09_top", top_n))
+    save_heatmap_pair(
       heat_mat,
       title = paste0("DEG annotated top", top_n, " (lambda=0.2, res=0.9)"),
-      out_jpg = file.path(OUT_DIR, paste0("heatmap_annotated_lam02_res09_top", top_n, ".jpg")),
+      out_base = out_base,
       gaps_row = gaps_row,
       labels_row = as.character(topN$gene),
       w = 12,
-      h = max(10, 0.45 * nrow(heat_mat))
+      h = max(10, 0.45 * nrow(heat_mat)),
+      label_scale = ifelse(top_n == 2, 1.3, 1)
     )
+
+    if (top_n == 2) {
+      save_heatmap_pair(
+        heat_mat,
+        title = paste0("DEG annotated top", top_n, " (lambda=0.2, res=0.9)"),
+        out_base = file.path(OUT_DIR, "heatmap_annotated_lam02_res09_top2_OK"),
+        gaps_row = gaps_row,
+        labels_row = as.character(topN$gene),
+        w = 12,
+        h = max(10, 0.45 * nrow(heat_mat)),
+        label_scale = 1.3
+      )
+    }
   }
 } else {
   message("Heatmap ignorée: aucun gène top5 présent dans AverageExpression")

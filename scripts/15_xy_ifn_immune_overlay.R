@@ -40,7 +40,7 @@ setwd(base_path)
 out_dir <- file.path("outputs", "banksy", "ifn_immune_overlay")
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-SAMPLE_ORDER <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 
 # Domains of interest (BANKSY lam=0.2, res=0.9)
 DOMAIN_IMMUNE <- "Domain_13"   # Immune (Acod1)
@@ -124,6 +124,14 @@ sample_levels   <- c(
 )
 plot_df$sample <- factor(plot_df$sample, levels = sample_levels)
 
+# Shared XY limits across sample panels (same spatial scale within Figure 1)
+global_x_range <- range(plot_df$x, na.rm = TRUE)
+global_y_range <- range(plot_df$y, na.rm = TRUE)
+global_x_pad <- max(diff(global_x_range) * 0.08, 50)
+global_y_pad <- max(diff(global_y_range) * 0.08, 50)
+global_xlim <- c(global_x_range[1] - global_x_pad, global_x_range[2] + global_x_pad)
+global_ylim <- c(global_y_range[1] - global_y_pad, global_y_range[2] + global_y_pad)
+
 # Counts summary
 cat("\nCell counts per layer:\n")
 print(
@@ -158,11 +166,6 @@ make_sample_panel <- function(sname, df) {
   d_other <- d_samp %>% filter(layer == "Other")
   d_imm   <- d_samp %>% filter(layer == "Immune (Acod1)")
   d_ifn   <- d_samp %>% filter(layer == "IFN responsive (Ifit1)")
-
-  xr   <- range(d_samp$x, na.rm = TRUE)
-  yr   <- range(d_samp$y, na.rm = TRUE)
-  xpad <- max(diff(xr) * 0.08, 50)
-  ypad <- max(diff(yr) * 0.08, 50)
 
   nice_name <- dplyr::recode(
     sname,
@@ -219,8 +222,8 @@ make_sample_panel <- function(sname, df) {
       drop = FALSE
     ) +
     coord_fixed(
-      xlim   = c(xr[1] - xpad, xr[2] + xpad),
-      ylim   = c(yr[1] - ypad, yr[2] + ypad),
+      xlim   = global_xlim,
+      ylim   = global_ylim,
       expand = FALSE
     ) +
     labs(

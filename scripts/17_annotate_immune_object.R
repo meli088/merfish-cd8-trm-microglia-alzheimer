@@ -88,7 +88,7 @@ cell_type <- ifelse(
 se$cell_type     <- cell_type
 se$banksy_domain_immune <- domain_labels
 
-cat("\nDistribution cell_type:\n")
+cat("\nDistribution cell_type :\n")
 print(sort(table(se$cell_type), decreasing = TRUE))
 
 # -------------------------------------------------------

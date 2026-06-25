@@ -22,6 +22,7 @@ run*.txt
 # Root-level intermediate files
 ncells_by_sample_lam02_res09_joint_long.csv
 diagnose_banksy.R
+Rplots.pdf
 
 # AI assistant context
 .claude/

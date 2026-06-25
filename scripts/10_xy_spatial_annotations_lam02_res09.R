@@ -83,7 +83,7 @@ plot_df <- tibble(
   annotation = cell_annotations
 )
 
-sample_order <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+sample_order <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 samples_present <- unique(plot_df$sample)
 sample_levels <- c(
   sample_order[sample_order %in% samples_present],
@@ -93,9 +93,17 @@ plot_df$sample <- factor(plot_df$sample, levels = sample_levels)
 
 all_annotations <- order_annotations(unique(plot_df$annotation))
 
+# Shared XY limits across sample panels (same spatial scale within each figure)
+global_x_range <- range(plot_df$x, na.rm = TRUE)
+global_y_range <- range(plot_df$y, na.rm = TRUE)
+global_x_pad <- max(diff(global_x_range) * 0.08, 50)
+global_y_pad <- max(diff(global_y_range) * 0.08, 50)
+global_xlim <- c(global_x_range[1] - global_x_pad, global_x_range[2] + global_x_pad)
+global_ylim <- c(global_y_range[1] - global_y_pad, global_y_range[2] + global_y_pad)
+
 cat("Cells:", nrow(plot_df), "\n")
 cat("Annotations:", length(all_annotations), "\n")
-cat("Using per-sample centered spatial extents with fixed aspect ratio in microns.\n")
+cat("Using shared XY limits across sample panels with fixed micron aspect ratio.\n")
 
 # Save annotation counts
 annot_counts <- plot_df %>%
@@ -144,11 +152,6 @@ for (a in all_annotations) {
       return(NULL)
     }
 
-    x_range <- range(df_sample$x, na.rm = TRUE)
-    y_range <- range(df_sample$y, na.rm = TRUE)
-    x_pad <- max(diff(x_range) * 0.08, 50)
-    y_pad <- max(diff(y_range) * 0.08, 50)
-
     hull_sample <- hull_df %>% filter(sample == sample_name)
 
     ggplot() +
@@ -167,8 +170,8 @@ for (a in all_annotations) {
         stroke = 0
       ) +
       coord_fixed(
-        xlim = c(x_range[1] - x_pad, x_range[2] + x_pad),
-        ylim = c(y_range[1] - y_pad, y_range[2] + y_pad),
+        xlim = global_xlim,
+        ylim = global_ylim,
         expand = FALSE
       ) +
       labs(

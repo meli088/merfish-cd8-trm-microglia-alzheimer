@@ -61,7 +61,7 @@ RES_TARGET      <- 0.9
 TOP_N           <- 10L
 PCT_THRESHOLD   <- 0       # > 0 = any detection
 
-SAMPLE_ORDER  <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER  <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 SAMPLE_LABELS <- c(
   mock_6wpi = "Mock 6 wpi",
   LCMV_1wpi = "LCMV 1 wpi",

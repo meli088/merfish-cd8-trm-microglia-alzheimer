@@ -132,7 +132,7 @@ sample_vec    <- as.character(so@meta.data$sample)
 avail_samples <- unique(sample_vec)
 if (!"LCMV_6wpi" %in% avail_samples) stop("LCMV_6wpi not found in object")
 
-sample_order <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+sample_order <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 present      <- sample_order[sample_order %in% avail_samples]
 comparisons  <- setdiff(present, c("LCMV_6wpi", "mock_6wpi"))
 comp_tags    <- gsub("LCMV_", "", comparisons)

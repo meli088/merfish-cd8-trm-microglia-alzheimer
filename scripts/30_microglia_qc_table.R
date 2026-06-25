@@ -43,7 +43,7 @@ MICROGLIA_LABEL <- "Microglia (P2ry12)"
 LAM             <- 0.2
 RES_TARGET      <- 0.9
 REF_CONDITION   <- "mock_6wpi"
-SAMPLE_ORDER    <- c("mock_6wpi", "LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi")
+SAMPLE_ORDER    <- c("LCMV_1wpi", "LCMV_3wpi", "LCMV_6wpi", "mock_6wpi")
 
 SAMPLE_LABELS <- c(
   mock_6wpi = "Mock 6 wpi",
